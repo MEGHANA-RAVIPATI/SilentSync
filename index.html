@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Silent Sync — Gesture Arena</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<style>
+:root{
+  --bg:#050711;--panel:#0e1230;--panel2:#101638;--line:rgba(255,255,255,.1);
+  --text:#f7f8ff;--muted:#9ca6ca;--cyan:#31e7ff;--purple:#9c5cff;
+  --pink:#ff4fd1;--green:#45ff9f;--yellow:#ffd65a;--red:#ff5b76;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--text);min-height:100vh;background:
+radial-gradient(circle at 10% 10%,rgba(49,231,255,.12),transparent 28%),
+radial-gradient(circle at 90% 20%,rgba(156,92,255,.15),transparent 30%),
+radial-gradient(circle at 50% 100%,rgba(255,79,209,.08),transparent 35%),var(--bg);overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.13;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(to bottom,#000,transparent 90%)}
+.orb{position:fixed;width:300px;height:300px;border-radius:50%;filter:blur(90px);opacity:.13;pointer-events:none;animation:orb 9s ease-in-out infinite}.o1{left:-150px;top:30%;background:var(--cyan)}.o2{right:-150px;top:60%;background:var(--pink);animation-delay:2s}@keyframes orb{50%{transform:translateY(-50px) scale(1.08)}}
+
+header{height:78px;position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 5%;background:rgba(4,6,18,.82);border-bottom:1px solid var(--line);backdrop-filter:blur(18px)}
+.logo{display:flex;align-items:center;gap:12px}.logoIcon{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:24px;background:linear-gradient(135deg,var(--cyan),var(--purple));box-shadow:0 0 28px rgba(49,231,255,.22)}.logoText{font-weight:900;letter-spacing:2px}.logoText span{color:var(--cyan)}
+.headerStats{display:flex;gap:9px}.pill{padding:9px 14px;border-radius:30px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:12px}.pill.xp{color:var(--yellow)}
+
+main{width:min(1420px,92%);margin:30px auto 70px}.hero{text-align:center;margin-bottom:24px}.badge{display:inline-flex;padding:7px 13px;border-radius:30px;border:1px solid rgba(49,231,255,.22);background:rgba(49,231,255,.06);color:var(--cyan);font-size:10px;font-weight:800;letter-spacing:1.6px}.hero h1{font-size:clamp(32px,5vw,58px);line-height:1.03;margin-top:13px;font-weight:950}.gradient{background:linear-gradient(90deg,var(--cyan),var(--purple),var(--pink));-webkit-background-clip:text;color:transparent}.hero p{max-width:700px;margin:13px auto 0;color:var(--muted);line-height:1.6;font-size:14px}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}.stat{padding:17px 18px;border:1px solid var(--line);border-radius:19px;background:rgba(16,20,52,.78);backdrop-filter:blur(15px)}.label{font-size:9px;color:var(--muted);letter-spacing:1.4px}.num{font-size:25px;font-weight:950;margin-top:6px}.yellow{color:var(--yellow)}.pink{color:var(--pink)}.green{color:var(--green)}.cyan{color:var(--cyan)}
+
+.grid2{display:grid;grid-template-columns:1fr 1.1fr;gap:18px}.card{border:1px solid var(--line);border-radius:25px;background:linear-gradient(145deg,rgba(22,27,63,.9),rgba(7,10,28,.96));box-shadow:0 25px 80px rgba(0,0,0,.24);backdrop-filter:blur(20px)}
+.learn{padding:24px}.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}.title{font-size:18px;font-weight:900}.sub{font-size:11px;color:var(--muted);margin-top:3px}.category{padding:6px 10px;border-radius:20px;color:var(--purple);border:1px solid rgba(156,92,255,.28);background:rgba(156,92,255,.08);font-size:10px;font-weight:800}
+.signHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}.signName{font-size:35px;font-weight:950;background:linear-gradient(90deg,var(--cyan),var(--purple));-webkit-background-clip:text;color:transparent}.targetEmoji{font-size:40px;filter:drop-shadow(0 0 16px rgba(49,231,255,.25));animation:float 2.8s ease-in-out infinite}@keyframes float{50%{transform:translateY(-8px)}}
+
+.reference{min-height:280px;border-radius:20px;border:1px solid rgba(255,255,255,.08);position:relative;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle,rgba(49,231,255,.1),transparent 60%)}.reference:after{content:"";position:absolute;width:180px;height:180px;border-radius:50%;background:var(--cyan);filter:blur(70px);opacity:.08}.refEmoji{font-size:150px;position:relative;z-index:2;animation:refPulse 2.4s ease-in-out infinite}.refEmoji.playing{animation:gestureMove 1.2s ease-in-out 2}@keyframes refPulse{50%{transform:scale(1.05)}}@keyframes gestureMove{0%{transform:translateX(-25px) rotate(-7deg)}50%{transform:translateX(25px) rotate(7deg)}100%{transform:translateX(0) rotate(0)}}
+.refCaption{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:4;padding:7px 12px;border-radius:30px;background:rgba(4,6,18,.78);border:1px solid var(--line);font-size:10px;color:var(--muted);white-space:nowrap}
+
+.videoRef{margin-top:13px;padding:12px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:12px}.videoIcon{width:43px;height:43px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--purple),var(--pink));font-size:18px}.videoInfo{flex:1}.videoInfo strong{display:block;font-size:13px}.videoInfo span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.round{width:39px;height:39px;border-radius:50%;border:1px solid rgba(49,231,255,.3);background:rgba(49,231,255,.08);color:var(--cyan);cursor:pointer}
+
+.tutorial{margin-top:17px}.tutorialTitle{font-size:12px;font-weight:900;margin-bottom:9px}.steps{display:grid;gap:7px}.step{display:flex;gap:10px;align-items:center;padding:10px;border-radius:13px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);transition:.25s}.step.active{border-color:rgba(49,231,255,.35);background:rgba(49,231,255,.07);transform:translateX(3px)}.stepNum{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:rgba(49,231,255,.08);color:var(--cyan);font-size:11px;font-weight:900}.stepText{font-size:11px;color:var(--muted)}.step.active .stepText{color:#fff}
+
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:16px}button{font:inherit}.btn{border:0;border-radius:14px;padding:13px 16px;cursor:pointer;font-weight:900;transition:.22s}.btn:hover{transform:translateY(-2px)}.primary{color:#031018;background:linear-gradient(90deg,var(--cyan),#a7fff1);box-shadow:0 0 25px rgba(49,231,255,.13)}.secondary{color:#fff;background:rgba(255,255,255,.06);border:1px solid var(--line)}
+
+.camera{padding:16px}.cameraHead{padding:7px 7px 14px;display:flex;justify-content:space-between}.cameraTitle{font-weight:900}.cameraHint{font-size:10px;color:var(--muted);margin-top:3px}.cameraBox{position:relative;aspect-ratio:16/10;overflow:hidden;border-radius:19px;background:#010209;border:1px solid rgba(49,231,255,.17)}#video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}#canvas{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none}.corners span{position:absolute;width:34px;height:34px;border-color:var(--cyan);border-style:solid;z-index:5}.tl{top:15px;left:15px;border-width:2px 0 0 2px}.tr{top:15px;right:15px;border-width:2px 2px 0 0}.bl{bottom:15px;left:15px;border-width:0 0 2px 2px}.br{bottom:15px;right:15px;border-width:0 2px 2px 0}
+.status{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:6;padding:8px 13px;border-radius:30px;background:rgba(4,6,18,.78);border:1px solid var(--line);font-size:10px;backdrop-filter:blur(10px)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green);margin-right:6px;animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.3}}
+.zone{position:absolute;width:190px;height:210px;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;border:2px dashed rgba(49,231,255,.27);border-radius:45%;display:grid;place-items:center;transition:.3s;pointer-events:none}.zone.active{border-color:var(--green);box-shadow:0 0 35px rgba(69,255,159,.18);transform:translate(-50%,-50%) scale(1.04)}.zone span{text-align:center;font-size:10px;line-height:1.5;color:rgba(255,255,255,.5)}
+.guidance{position:absolute;bottom:13px;left:13px;right:13px;z-index:7;display:flex;align-items:center;gap:10px;padding:12px;border-radius:14px;background:rgba(4,6,18,.84);border:1px solid var(--line);backdrop-filter:blur(12px)}.gIcon{font-size:20px}.gText strong{display:block;font-size:11px}.gText span{display:block;color:var(--muted);font-size:9px;margin-top:2px}
+.conf{margin-top:11px;padding:12px;border-radius:15px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}.confRow{display:flex;justify-content:space-between;color:var(--muted);font-size:10px;margin-bottom:7px}.bar{height:7px;border-radius:20px;background:rgba(255,255,255,.08);overflow:hidden}.fill{height:100%;width:0%;border-radius:inherit;background:linear-gradient(90deg,var(--purple),var(--cyan),var(--green));transition:width .2s}
+.pred{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}.predCard{padding:14px;text-align:center;border-radius:15px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}.predLabel{font-size:9px;color:var(--muted);letter-spacing:1px}.predValue{font-size:20px;font-weight:950;color:var(--cyan);margin-top:5px}.predEmoji{font-size:29px;margin-right:5px}.cameraBtns{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}
+
+.modeSection{margin-top:20px}.sectionTitle{font-size:18px;font-weight:950;margin-bottom:12px}.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}.mode{padding:17px;cursor:pointer;transition:.25s}.mode:hover{transform:translateY(-5px)}.mode.active{border-color:rgba(49,231,255,.35);box-shadow:0 0 30px rgba(49,231,255,.08)}.modeIcon{font-size:27px;margin-bottom:9px}.modeName{font-size:13px;font-weight:900}.modeDesc{font-size:10px;line-height:1.4;color:var(--muted);margin-top:4px}
+
+.toast{position:fixed;right:20px;bottom:20px;z-index:200;padding:13px 17px;border-radius:14px;background:rgba(15,18,40,.96);border:1px solid var(--line);transform:translateY(100px);opacity:0;transition:.3s;font-size:11px}.toast.show{transform:translateY(0);opacity:1}
+.overlay{position:fixed;inset:0;z-index:150;display:none;place-items:center;background:rgba(2,3,12,.78);backdrop-filter:blur(14px);padding:20px}.overlay.show{display:grid}.successBox{width:min(520px,100%);text-align:center;padding:38px;border-radius:28px;background:linear-gradient(145deg,#171d45,#080b22);border:1px solid var(--line);box-shadow:0 30px 100px rgba(0,0,0,.6);animation:pop .55s ease}.successEmoji{font-size:72px}.successTitle{font-size:38px;font-weight:950;color:var(--green);text-shadow:0 0 35px rgba(69,255,159,.4)}.earned{font-size:22px;font-weight:950;color:var(--yellow);margin-top:7px}.nextHint{color:var(--muted);font-size:12px;margin-top:10px}@keyframes pop{from{transform:scale(.65);opacity:0}to{transform:scale(1);opacity:1}}
+.xpFloat{position:fixed;z-index:250;font-size:22px;font-weight:950;color:var(--yellow);pointer-events:none;animation:xpUp 1s ease-out forwards}@keyframes xpUp{to{transform:translateY(-100px) scale(1.3);opacity:0}}
+.particle{position:fixed;width:7px;height:7px;border-radius:50%;z-index:220;pointer-events:none;animation:fly .9s ease-out forwards}@keyframes fly{to{transform:translate(var(--x),var(--y)) scale(0);opacity:0}}
+
+.modal{position:fixed;inset:0;z-index:160;display:none;place-items:center;background:rgba(2,3,12,.8);backdrop-filter:blur(14px);padding:20px}.modal.show{display:grid}.modalCard{width:min(680px,100%);max-height:90vh;overflow:auto;padding:28px;border-radius:26px;background:linear-gradient(145deg,#171d45,#080b22);border:1px solid var(--line);text-align:center;animation:pop .4s ease}.modalEmoji{font-size:130px;margin:12px 0}.modalCard p{color:var(--muted);line-height:1.6;font-size:12px}.modalSteps{display:grid;gap:8px;margin:16px 0;text-align:left}.modalStep{padding:11px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:11px}.modalBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:17px}
+
+@media(max-width:1050px){.grid2{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.modes{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){header{padding:0 4%}.pill.level{display:none}main{width:94%}.stats{grid-template-columns:1fr 1fr}.pred,.cameraBtns,.actions{grid-template-columns:1fr}.modes{grid-template-columns:1fr}.signName{font-size:28px}.reference{min-height:230px}.refEmoji{font-size:120px}}
+</style>
+</head>
+
+<body>
+<div class="orb o1"></div><div class="orb o2"></div>
+
+<header>
+  <div class="logo"><div class="logoIcon">🤟</div><div class="logoText">SILENT <span>SYNC</span></div></div>
+  <div class="headerStats">
+    <div class="pill level">LEVEL <b id="headerLevel">01</b></div>
+    <div class="pill xp">⚡ <span id="headerXP">0</span> XP</div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="badge">✦ LEARN • PRACTICE • SYNC</div>
+    <h1>Learn the sign.<br><span class="gradient">Then make it yours.</span></h1>
+    <p>See the exact target, watch the movement, practice with live hand guidance, and receive a real prediction from your teammate's AI model.</p>
+  </section>
+
+  <section class="stats">
+    <div class="stat"><div class="label">TOTAL SCORE</div><div class="num yellow" id="score">0</div></div>
+    <div class="stat"><div class="label">CURRENT STREAK</div><div class="num pink" id="streak">0 🔥</div></div>
+    <div class="stat"><div class="label">ACCURACY</div><div class="num green" id="accuracy">--</div></div>
+    <div class="stat"><div class="label">SIGNS MASTERED</div><div class="num cyan" id="mastered">0</div></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card learn">
+      <div class="head">
+        <div><div class="title">🎓 Learn this gesture</div><div class="sub">Know exactly what to perform before opening the challenge.</div></div>
+        <div class="category" id="signCategory">BEGINNER</div>
+      </div>
+
+      <div class="signHead">
+        <div class="signName" id="signName">HELLO</div>
+        <div class="targetEmoji" id="targetEmoji">👋</div>
+      </div>
+
+      <div class="reference">
+        <div class="refEmoji" id="refEmoji">👋</div>
+        <div class="refCaption">✋ VISUAL GESTURE REFERENCE</div>
+      </div>
+
+      <div class="videoRef">
+        <div class="videoIcon">▶</div>
+        <div class="videoInfo"><strong>Watch the movement</strong><span id="videoDescription">Animated reference for HELLO</span></div>
+        <button class="round" id="playReference" title="Play reference">▶</button>
+      </div>
+
+      <div class="tutorial">
+        <div class="tutorialTitle">🧩 FOLLOW THESE STEPS</div>
+        <div class="steps">
+          <div class="step active" id="step1"><div class="stepNum">1</div><div class="stepText"></div></div>
+          <div class="step" id="step2"><div class="stepNum">2</div><div class="stepText"></div></div>
+          <div class="step" id="step3"><div class="stepNum">3</div><div class="stepText"></div></div>
+          <div class="step" id="step4"><div class="stepNum">4</div><div class="stepText"></div></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn secondary" id="changeSignBtn">🔄 Another Sign</button>
+        <button class="btn primary" id="practiceBtn">🚀 Start Practice</button>
+      </div>
+    </div>
+
+    <div class="card camera">
+      <div class="cameraHead">
+        <div><div class="cameraTitle">📷 Guided Practice</div><div class="cameraHint">Camera frames stay in this browser unless your backend connection sends landmarks.</div></div>
+      </div>
+
+      <div class="cameraBox">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas"></canvas>
+        <div class="corners"><span class="tl"></span><span class="tr"></span><span class="bl"></span><span class="br"></span></div>
+        <div class="status"><span class="dot"></span><span id="cameraStatus">CAMERA OFF</span></div>
+        <div class="zone" id="targetZone"><span>PLACE YOUR HAND<br>INSIDE THIS AREA</span></div>
+        <div class="guidance">
+          <div class="gIcon" id="guidanceIcon">👀</div>
+          <div class="gText"><strong id="guidanceTitle">Study the reference first</strong><span id="guidanceSub">Then start guided practice.</span></div>
+        </div>
+      </div>
+
+      <div class="conf">
+        <div class="confRow"><span>AI CONFIDENCE</span><b id="confidenceText">0%</b></div>
+        <div class="bar"><div class="fill" id="confidenceFill"></div></div>
+      </div>
+
+      <div class="pred">
+        <div class="predCard"><div class="predLabel">TARGET</div><div class="predValue" id="targetPrediction"><span class="predEmoji">👋</span>HELLO</div></div>
+        <div class="predCard"><div class="predLabel">AI DETECTED</div><div class="predValue" id="prediction">WAITING</div></div>
+      </div>
+
+      <div class="cameraBtns">
+        <button class="btn primary" id="startCameraBtn">📷 Start Camera</button>
+        <button class="btn secondary" id="nextBtn">Next Challenge →</button>
+      </div>
+
+      <div style="margin-top:10px;padding:10px 12px;border-radius:13px;background:rgba(255,214,90,.05);border:1px solid rgba(255,214,90,.12);font-size:10px;color:var(--muted)">
+        <b style="color:var(--yellow)">AI connection:</b> MediaPipe detects the hand here. Your AI teammate should call <b style="color:#fff">window.receiveModelPrediction("HELLO", 0.94)</b> (or 94) after classifying the landmarks.
+      </div>
+    </div>
+  </section>
+
+  <section class="modeSection">
+    <div class="sectionTitle">🎮 Choose your challenge</div>
+    <div class="modes">
+      <div class="card mode active" data-mode="practice"><div class="modeIcon">🎯</div><div class="modeName">Sign Trainer</div><div class="modeDesc">Learn one gesture and practice with guidance.</div></div>
+      <div class="card mode" data-mode="speed"><div class="modeIcon">⚡</div><div class="modeName">Speed Rush</div><div class="modeDesc">Beat the clock and chain correct signs.</div></div>
+      <div class="card mode" data-mode="memory"><div class="modeIcon">🧠</div><div class="modeName">Memory Sync</div><div class="modeDesc">Watch the reference, hide it, then reproduce it.</div></div>
+      <div class="card mode" data-mode="streak"><div class="modeIcon">🔥</div><div class="modeName">Streak Hunter</div><div class="modeDesc">Build the longest perfect-answer streak.</div></div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="learnModal">
+  <div class="modalCard">
+    <div class="badge">✦ QUICK LESSON</div>
+    <h2 id="modalTitle" style="margin-top:12px">Learn HELLO 👋</h2>
+    <div class="modalEmoji" id="modalEmoji">👋</div>
+    <p id="modalDescription">Study the reference, then enter guided practice.</p>
+    <div class="modalSteps" id="modalSteps"></div>
+    <div class="modalBtns"><button class="btn secondary" id="closeModal">Back</button><button class="btn primary" id="modalPractice">🚀 Practice Now</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="successOverlay">
+  <div class="successBox">
+    <div class="successEmoji">🎉</div>
+    <div class="successTitle">PERFECT SYNC!</div>
+    <div class="earned" id="successXP">+15 XP</div>
+    <div class="nextHint">Next challenge loading…</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   SILENT SYNC — FRONTEND PERSON 2
+   Camera + MediaPipe + guided practice + AI integration
+   IMPORTANT: this file NEVER invents AI predictions.
+   The real model must call window.receiveModelPrediction().
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+
+const video = $("video");
+const canvas = $("canvas");
+const ctx = canvas.getContext("2d");
+const startCameraBtn = $("startCameraBtn");
+const nextBtn = $("nextBtn");
+const practiceBtn = $("practiceBtn");
+const changeSignBtn = $("changeSignBtn");
+const predictionEl = $("prediction");
+const targetPrediction = $("targetPrediction");
+const confidenceText = $("confidenceText");
+const confidenceFill = $("confidenceFill");
+const cameraStatus = $("cameraStatus");
+const guidanceTitle = $("guidanceTitle");
+const guidanceSub = $("guidanceSub");
+const guidanceIcon = $("guidanceIcon");
+const targetZone = $("targetZone");
+const signName = $("signName");
+const signCategory = $("signCategory");
+const videoDescription = $("videoDescription");
+const refEmoji = $("refEmoji");
+const targetEmoji = $("targetEmoji");
+const scoreEl = $("score");
+const streakEl = $("streak");
+const accuracyEl = $("accuracy");
+const masteredEl = $("mastered");
+const headerXP = $("headerXP");
+const headerLevel = $("headerLevel");
+const learnModal = $("learnModal");
+const closeModal = $("closeModal");
+const modalPractice = $("modalPractice");
+const modalTitle = $("modalTitle");
+const modalEmoji = $("modalEmoji");
+const modalDescription = $("modalDescription");
+const modalSteps = $("modalSteps");
+const playReference = $("playReference");
+const successOverlay = $("successOverlay");
+const successXP = $("successXP");
+const toast = $("toast");
+
+const signs = [
+  {word:"HELLO",emoji:"👋",category:"BEGINNER",description:"Open your palm and use the reference movement shown on screen.",steps:["Look at the open-palm reference.","Copy the hand shape and keep your palm visible.","Follow the reference movement smoothly.","Hold the finished gesture inside the guide."]},
+  {word:"YES",emoji:"👍",category:"BEGINNER",description:"Make the YES hand shape shown in the reference. Follow your verified sign-language reference.",steps:["Look carefully at the 👍 reference.","Copy the hand and finger position.","Follow the movement from your verified reference.","Hold the final position for recognition."]},
+  {word:"NO",emoji:"👎",category:"BEGINNER",description:"Study the NO reference and reproduce the hand position/movement.",steps:["Observe the 👎 reference.","Copy the starting hand position.","Follow the demonstrated movement.","Hold the completed gesture."]},
+  {word:"THANK YOU",emoji:"🙏",category:"BEGINNER",description:"Use your verified reference to learn the exact THANK YOU movement.",steps:["Watch the starting position.","Copy the hand placement.","Follow the demonstrated direction.","Complete the gesture inside the guide."]},
+  {word:"PLEASE",emoji:"🤲",category:"BEGINNER",description:"Study the verified PLEASE reference before attempting it.",steps:["Observe the 🤲 reference.","Copy the hand placement.","Follow the reference movement.","Hold the finished sign steadily."]},
+  {word:"SORRY",emoji:"✊",category:"BASIC",description:"Study the verified SORRY reference and reproduce it.",steps:["Observe the ✊ reference.","Copy the hand shape.","Follow the movement carefully.","Hold the final pose."]},
+  {word:"HELP",emoji:"🆘",category:"BASIC",description:"Study the verified HELP reference. This sign may require more than one hand.",steps:["Observe the complete reference.","Copy both hand positions if required.","Follow the movement together.","Hold the final pose for recognition."]},
+  {word:"LOVE",emoji:"❤️",category:"BASIC",description:"Study your verified LOVE reference and reproduce the hand shape.",steps:["Observe the ❤️ reference.","Copy the hand shape.","Follow the demonstrated movement.","Hold still when the model is ready."]},
+  {word:"GOOD",emoji:"👌",category:"BASIC",description:"Study the verified GOOD reference before practicing.",steps:["Observe the 👌 reference.","Copy the hand position.","Follow the movement.","Hold the completed sign."]},
+  {word:"FRIEND",emoji:"🤝",category:"BASIC",description:"Study the verified FRIEND reference and reproduce it carefully.",steps:["Observe the 🤝 reference.","Copy the starting position.","Follow the movement.","Complete the gesture in the target zone."]}
+];
+
+let currentIndex=0;
+let currentMode="practice";
+let score=0,xp=0,streak=0,attempts=0,correct=0;
+let mastered=new Set();
+let cameraStarted=false,hands=null,frameBusy=false;
+let predictionLock=false;
+let lastScoredPrediction="";
+let toastTimer=null;
+let audioContext=null;
+
+function currentSign(){return signs[currentIndex]}
+
+function normalizeConfidence(value){
+  let n=Number(value);
+  if(!Number.isFinite(n)) return 0;
+  if(n>=0 && n<=1) n*=100;
+  return Math.max(0,Math.min(100,n));
+}
+
+function normalizeGesture(value){
+  return String(value ?? "").trim().toUpperCase().replace(/\s+/g," ");
+}
+
+function loadSign(){
+  const s=currentSign();
+  signName.textContent=s.word;
+  signCategory.textContent=s.category;
+  refEmoji.textContent=s.emoji;
+  targetEmoji.textContent=s.emoji;
+  targetPrediction.innerHTML=`<span class="predEmoji">${s.emoji}</span>${s.word}`;
+  videoDescription.textContent=`Animated reference for ${s.word}`;
+  predictionEl.textContent="WAITING";
+  confidenceText.textContent="0%";
+  confidenceFill.style.width="0%";
+  guidanceIcon.textContent="👀";
+  guidanceTitle.textContent="Study the reference first";
+  guidanceSub.textContent="Then start guided practice.";
+  targetZone.classList.remove("active");
+  updateSteps();
+  if(currentMode==="memory"){
+    refEmoji.style.opacity=".15";
+    setTimeout(()=>refEmoji.style.opacity="1",1200);
+  }else{
+    refEmoji.style.opacity="1";
+  }
+}
+
+function updateSteps(){
+  const s=currentSign();
+  document.querySelectorAll(".step").forEach((el,i)=>{
+    el.querySelector(".stepText").textContent=s.steps[i]||"Complete the gesture.";
+    el.classList.toggle("active",i===0);
+  });
+}
+
+function openLearning(){
+  const s=currentSign();
+  modalTitle.textContent=`Learn ${s.word} ${s.emoji}`;
+  modalEmoji.textContent=s.emoji;
+  modalDescription.textContent=s.description;
+  modalSteps.innerHTML=s.steps.map((x,i)=>`<div class="modalStep"><b>${i+1}.</b> ${x}</div>`).join("");
+  learnModal.classList.add("show");
+}
+function closeLearning(){learnModal.classList.remove("show")}
+
+function nextSign(auto=false){
+  currentIndex=(currentIndex+1)%signs.length;
+  lastScoredPrediction="";
+  loadSign();
+  if(!auto) openLearning();
+  playTone(540,.07);
+  window.scrollTo({top:document.querySelector(".grid2").offsetTop-95,behavior:"smooth"});
+}
+
+function updateStats(){
+  scoreEl.textContent=score;
+  streakEl.textContent=`${streak} 🔥`;
+  accuracyEl.textContent=attempts?`${Math.round(correct/attempts*100)}%`:"--";
+  masteredEl.textContent=mastered.size;
+  headerXP.textContent=xp;
+  headerLevel.textContent=String(Math.floor(xp/100)+1).padStart(2,"0");
+}
+
+function initAudio(){
+  if(!audioContext){
+    audioContext=new (window.AudioContext||window.webkitAudioContext)();
+  }
+  if(audioContext.state==="suspended") audioContext.resume();
+}
+function playTone(freq,duration,type="sine",volume=.1){
+  try{
+    initAudio();
+    const o=audioContext.createOscillator(),g=audioContext.createGain();
+    o.type=type;o.frequency.value=freq;
+    g.gain.setValueAtTime(.0001,audioContext.currentTime);
+    g.gain.exponentialRampToValueAtTime(volume,audioContext.currentTime+.01);
+    g.gain.exponentialRampToValueAtTime(.0001,audioContext.currentTime+duration);
+    o.connect(g);g.connect(audioContext.destination);o.start();
+    o.stop(audioContext.currentTime+duration);
+  }catch(e){}
+}
+function successSound(){playTone(660,.1);setTimeout(()=>playTone(880,.12),100);setTimeout(()=>playTone(1100,.16),210)}
+function errorSound(){playTone(190,.18,"sawtooth",.07)}
+
+function showToast(msg){
+  toast.textContent=msg;toast.classList.add("show");
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove("show"),2500);
+}
+
+function burstParticles(){
+  for(let i=0;i<36;i++){
+    const p=document.createElement("div");p.className="particle";
+    p.style.left=(innerWidth/2)+"px";p.style.top=(innerHeight/2)+"px";
+    p.style.setProperty("--x",(Math.random()*520-260)+"px");
+    p.style.setProperty("--y",(Math.random()*520-260)+"px");
+    p.style.background=i%3===0?"#ffd65a":(i%3===1?"#31e7ff":"#9c5cff");
+    document.body.appendChild(p);setTimeout(()=>p.remove(),1000);
+  }
+}
+function floatXP(amount){
+  const el=document.createElement("div");el.className="xpFloat";el.textContent=`+${amount} XP`;
+  el.style.left=(innerWidth/2-35)+"px";el.style.top=(innerHeight/2+35)+"px";
+  document.body.appendChild(el);setTimeout(()=>el.remove(),1000);
+}
+
+function correctAnswer(){
+  if(predictionLock) return;
+  predictionLock=true;
+  attempts++;correct++;streak++;mastered.add(currentSign().word);
+  const earned=10+Math.min(streak*5,40);
+  score+=earned;xp+=earned;
+  predictionEl.textContent=`✓ ${currentSign().word} ${currentSign().emoji}`;
+  confidenceText.textContent="100%";confidenceFill.style.width="100%";
+  guidanceIcon.textContent="🎉";guidanceTitle.textContent="Perfect Sync!";
+  guidanceSub.textContent=`+${earned} XP • ${streak} streak`;
+  targetZone.classList.add("active");
+  successXP.textContent=`+${earned} XP`;
+  successOverlay.classList.add("show");
+  updateStats();successSound();burstParticles();floatXP(earned);
+
+  setTimeout(()=>successOverlay.classList.remove("show"),1050);
+  setTimeout(()=>{
+    predictionLock=false;
+    nextSign(true);
+    showToast(`Next challenge: ${currentSign().emoji} ${currentSign().word}`);
+  },1250);
+}
+
+function wrongAnswer(gesture){
+  if(predictionLock) return;
+  predictionLock=true;
+  attempts++;streak=0;
+  predictionEl.textContent=`${gesture}`;
+  guidanceIcon.textContent="🔄";
+  guidanceTitle.textContent=`Not ${currentSign().word} yet`;
+  guidanceSub.textContent=`You showed ${gesture}. Check the ${currentSign().emoji} reference and try again.`;
+  errorSound();updateStats();
+  setTimeout(()=>predictionLock=false,900);
+}
+
+/* THE ONLY ENTRY POINT FOR THE REAL AI MODEL.
+   Backend teammate can call either:
+   window.receiveModelPrediction("HELLO", 0.94)
+   OR
+   window.receiveModelPrediction("HELLO", 94)
+*/
+function receiveModelPrediction(gesture,confidence){
+  if(predictionLock) return;
+  const g=normalizeGesture(gesture);
+  const c=normalizeConfidence(confidence);
+  if(!g) return;
+  predictionEl.textContent=g;
+  confidenceText.textContent=`${Math.round(c)}%`;
+  confidenceFill.style.width=`${c}%`;
+
+  if(c<75){
+    guidanceIcon.textContent="👀";
+    guidanceTitle.textContent="Keep going";
+    guidanceSub.textContent="The model needs a stronger or more stable prediction.";
+    return;
+  }
+  if(g===currentSign().word){
+    if(g!==lastScoredPrediction){
+      lastScoredPrediction=g;
+      correctAnswer();
+    }
+  }else{
+    lastScoredPrediction="";
+    wrongAnswer(g);
+  }
+}
+window.receiveModelPrediction=receiveModelPrediction;
+
+/* MediaPipe */
+function setupMediaPipe(){
+  if(hands) return;
+  hands=new Hands({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+  hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.65,minTrackingConfidence:.65});
+  hands.onResults(handleResults);
+}
+
+function drawHandGuidance(landmarks){
+  if(!landmarks||!landmarks.length){
+    targetZone.classList.remove("active");
+    guidanceIcon.textContent="👋";
+    guidanceTitle.textContent="Show your hand";
+    guidanceSub.textContent="Place it inside the glowing target zone.";
+    return;
+  }
+  const xs=landmarks.map(p=>p.x),ys=landmarks.map(p=>p.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const cx=(minX+maxX)/2,cy=(minY+maxY)/2;
+  const centered=cx>.28&&cx<.72&&cy>.18&&cy<.82;
+  const size=maxX-minX;
+  if(size<.16){
+    targetZone.classList.remove("active");
+    guidanceIcon.textContent="🔎";
+    guidanceTitle.textContent="Move a little closer";
+    guidanceSub.textContent="Make your hand large enough for stable tracking.";
+  }else if(centered){
+    targetZone.classList.add("active");
+    guidanceIcon.textContent="🟢";
+    guidanceTitle.textContent="Hand positioned";
+    guidanceSub.textContent=`Now perform ${currentSign().emoji} ${currentSign().word}`;
+  }else{
+    targetZone.classList.remove("active");
+    guidanceIcon.textContent="🎯";
+    guidanceTitle.textContent="Center your hand";
+    guidanceSub.textContent="Move your hand into the glowing guide.";
+  }
+}
+
+function handleResults(results){
+  if(!cameraStarted) return;
+  canvas.width=video.videoWidth||1280;canvas.height=video.videoHeight||720;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const handsFound=results.multiHandLandmarks&&results.multiHandLandmarks.length;
+  if(handsFound){
+    cameraStatus.textContent=`${results.multiHandLandmarks.length} HAND${results.multiHandLandmarks.length>1?"S":""} DETECTED`;
+    results.multiHandLandmarks.forEach(landmarks=>{
+      drawConnectors(ctx,landmarks,HAND_CONNECTIONS,{color:"#31e7ff",lineWidth:4});
+      drawLandmarks(ctx,landmarks,{color:"#ffffff",lineWidth:2,radius:5});
+    });
+    drawHandGuidance(results.multiHandLandmarks[0]);
+
+    /* Send exact landmarks to the AI teammate. */
+    const landmarkData=results.multiHandLandmarks.map(hand=>hand.map(p=>({x:p.x,y:p.y,z:p.z})));
+    window.dispatchEvent(new CustomEvent("silentSyncLandmarks",{detail:{
+      landmarks:landmarkData,target:currentSign().word,mode:currentMode
+    }}));
+  }else{
+    cameraStatus.textContent="SEARCHING FOR HAND";
+    confidenceText.textContent="0%";confidenceFill.style.width="0%";
+    predictionEl.textContent="NO HAND";drawHandGuidance(null);
+  }
+}
+
+async function processFrames(){
+  if(cameraStarted&&hands&&video.readyState>=2&&!frameBusy){
+    frameBusy=true;
+    try{await hands.send({image:video})}catch(e){console.error("MediaPipe frame:",e)}
+    frameBusy=false;
+  }
+  requestAnimationFrame(processFrames);
+}
+
+async function startCamera(){
+  initAudio();
+  if(cameraStarted) return;
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{width:{ideal:1280},height:{ideal:720},facingMode:"user"},audio:false
+    });
+    video.srcObject=stream;await video.play();
+    cameraStarted=true;
+    cameraStatus.textContent="LIVE";
+    startCameraBtn.textContent="✓ CAMERA ACTIVE";
+    startCameraBtn.disabled=true;
+    guidanceIcon.textContent="✋";guidanceTitle.textContent="Show your hand";
+    guidanceSub.textContent=`Place your hand inside the zone, then perform ${currentSign().emoji} ${currentSign().word}.`;
+    setupMediaPipe();processFrames();showToast("Camera started — guided practice is live");playTone(650,.1);
+  }catch(err){
+    console.error(err);cameraStatus.textContent="CAMERA ERROR";
+    guidanceIcon.textContent="⚠️";guidanceTitle.textContent="Camera access needed";
+    guidanceSub.textContent="Allow camera permission, then press Start Camera again.";
+    showToast("Camera permission was not granted");
+  }
+}
+
+startCameraBtn.addEventListener("click",startCamera);
+practiceBtn.addEventListener("click",openLearning);
+changeSignBtn.addEventListener("click",nextSign);
+nextBtn.addEventListener("click",nextSign);
+closeModal.addEventListener("click",closeLearning);
+modalPractice.addEventListener("click",()=>{closeLearning();if(!cameraStarted)startCamera();guidanceTitle.textContent="Place your hand in the zone";guidanceSub.textContent=`Perform ${currentSign().emoji} ${currentSign().word}`;});
+
+playReference.addEventListener("click",()=>{
+  initAudio();playTone(700,.08);
+  refEmoji.classList.remove("playing");void refEmoji.offsetWidth;refEmoji.classList.add("playing");
+  document.querySelectorAll(".step").forEach(s=>s.classList.remove("active"));
+  let i=0;
+  const timer=setInterval(()=>{
+    document.querySelectorAll(".step").forEach(s=>s.classList.remove("active"));
+    const step=$(`step${i+1}`);if(step)step.classList.add("active");
+    i++;if(i>=4)clearInterval(timer);
+  },550);
+});
+
+document.querySelectorAll(".mode").forEach(mode=>{
+  mode.addEventListener("click",()=>{
+    document.querySelectorAll(".mode").forEach(m=>m.classList.remove("active"));
+    mode.classList.add("active");currentMode=mode.dataset.mode;
+    if(currentMode==="memory") showToast("🧠 Memory Sync: watch once, then reproduce");
+    if(currentMode==="speed") showToast("⚡ Speed Rush: fast correct answers earn the streak");
+    if(currentMode==="streak") showToast("🔥 Streak Hunter: protect your combo");
+    if(currentMode==="practice") showToast("🎯 Sign Trainer selected");
+    playTone(600,.08);
+  });
+});
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowRight") nextSign();
+  if(e.key.toLowerCase()==="c"&&!cameraStarted)startCamera();
+  if(e.key==="Escape")closeLearning();
+});
+
+window.getSilentSyncTarget=()=>currentSign().word;
+window.getSilentSyncState=()=>({target:currentSign().word,mode:currentMode,score,xp,streak,attempts,correct});
+
+loadSign();updateStats();
+</script>
+</body>
+</html>
