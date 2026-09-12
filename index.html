@@ -249,6 +249,10 @@ const successOverlay = $("successOverlay");
 const successXP = $("successXP");
 const toast = $("toast");
 
+const BACKEND_BASE_URL = "http://127.0.0.1:8001";
+const DEMO_USER_ID = "local-demo-user";
+let lastPredictionConfidence = 0;
+
 const signs = [
   {word:"HELLO",emoji:"👋",category:"BEGINNER",description:"Open your palm and use the reference movement shown on screen.",steps:["Look at the open-palm reference.","Copy the hand shape and keep your palm visible.","Follow the reference movement smoothly.","Hold the finished gesture inside the guide."]},
   {word:"YES",emoji:"👍",category:"BEGINNER",description:"Make the YES hand shape shown in the reference. Follow your verified sign-language reference.",steps:["Look carefully at the 👍 reference.","Copy the hand and finger position.","Follow the movement from your verified reference.","Hold the final position for recognition."]},
@@ -387,7 +391,36 @@ function floatXP(amount){
   document.body.appendChild(el);setTimeout(()=>el.remove(),1000);
 }
 
-function correctAnswer(){
+async function saveAttemptToBackend({ signId, recognizedSign, correct, confidence, responseTime, xpEarned }) {
+  try {
+    const payload = {
+      user_id: DEMO_USER_ID,
+      sign_id: signId,
+      recognized_sign: recognizedSign,
+      correct,
+      confidence,
+      response_time: responseTime,
+      xp_earned: xpEarned
+    };
+
+    const response = await fetch(`${BACKEND_BASE_URL}/attempt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error("Attempt save failed:", data);
+      return;
+    }
+    console.log("Attempt saved:", data);
+  } catch (error) {
+    console.error("Attempt save error:", error);
+  }
+}
+
+async function correctAnswer(){
   if(predictionLock) return;
   predictionLock=true;
   attempts++;correct++;streak++;mastered.add(currentSign().word);
@@ -401,6 +434,15 @@ function correctAnswer(){
   successXP.textContent=`+${earned} XP`;
   successOverlay.classList.add("show");
   updateStats();successSound();burstParticles();floatXP(earned);
+
+  await saveAttemptToBackend({
+    signId: currentIndex + 1,
+    recognizedSign: currentSign().word,
+    correct: true,
+    confidence: Math.max(0, Math.min(1, lastPredictionConfidence / 100 || 0.99)),
+    responseTime: 1.2,
+    xpEarned: earned
+  });
 
   setTimeout(()=>successOverlay.classList.remove("show"),1050);
   setTimeout(()=>{
@@ -419,6 +461,16 @@ function wrongAnswer(gesture){
   guidanceTitle.textContent=`Not ${currentSign().word} yet`;
   guidanceSub.textContent=`You showed ${gesture}. Check the ${currentSign().emoji} reference and try again.`;
   errorSound();updateStats();
+
+  saveAttemptToBackend({
+    signId: currentIndex + 1,
+    recognizedSign: gesture,
+    correct: false,
+    confidence: Math.max(0, Math.min(1, lastPredictionConfidence / 100 || 0)),
+    responseTime: 1.2,
+    xpEarned: 0
+  });
+
   setTimeout(()=>predictionLock=false,900);
 }
 
@@ -432,6 +484,7 @@ function receiveModelPrediction(gesture,confidence){
   if(predictionLock) return;
   const g=normalizeGesture(gesture);
   const c=normalizeConfidence(confidence);
+  lastPredictionConfidence = c;
   if(!g) return;
   predictionEl.textContent=g;
   confidenceText.textContent=`${Math.round(c)}%`;
@@ -515,7 +568,7 @@ function handleResults(results){
   z: p.z
 }));
 
-fetch("http://127.0.0.1:8000/predict", {
+fetch(`${BACKEND_BASE_URL}/predict`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json"
@@ -524,7 +577,13 @@ fetch("http://127.0.0.1:8000/predict", {
     landmarks: landmarkData
   })
 })
-.then(response => response.json())
+.then(async response => {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.detail || "Prediction request failed");
+  }
+  return data;
+})
 .then(data => {
   window.receiveModelPrediction(
     data.prediction,
@@ -533,6 +592,10 @@ fetch("http://127.0.0.1:8000/predict", {
 })
 .catch(error => {
   console.error("Backend prediction error:", error);
+  cameraStatus.textContent = "AI UNAVAILABLE";
+  guidanceIcon.textContent = "⚠️";
+  guidanceTitle.textContent = "Backend prediction unavailable";
+  guidanceSub.textContent = "Check the backend server on port 8001.";
 });
   }else{
     cameraStatus.textContent="SEARCHING FOR HAND";

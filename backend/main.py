@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from pathlib import Path
@@ -12,10 +13,30 @@ load_dotenv(Path(__file__).parent / ".env")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_KEY in backend/.env")
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
+        "file://",
+        "*",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class Landmark(BaseModel):
@@ -47,6 +68,9 @@ MODEL_PATH = (
     / "models"
     / "gesture_model.pkl"
 )
+
+if not MODEL_PATH.exists():
+    raise FileNotFoundError(f"Gesture model not found at {MODEL_PATH}")
 
 model = joblib.load(MODEL_PATH)
 
