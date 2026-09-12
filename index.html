@@ -509,10 +509,31 @@ function handleResults(results){
     drawHandGuidance(results.multiHandLandmarks[0]);
 
     /* Send exact landmarks to the AI teammate. */
-    const landmarkData=results.multiHandLandmarks.map(hand=>hand.map(p=>({x:p.x,y:p.y,z:p.z})));
-    window.dispatchEvent(new CustomEvent("silentSyncLandmarks",{detail:{
-      landmarks:landmarkData,target:currentSign().word,mode:currentMode
-    }}));
+    const landmarkData = results.multiHandLandmarks[0].map(p => ({
+  x: p.x,
+  y: p.y,
+  z: p.z
+}));
+
+fetch("http://127.0.0.1:8000/predict", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    landmarks: landmarkData
+  })
+})
+.then(response => response.json())
+.then(data => {
+  window.receiveModelPrediction(
+    data.prediction,
+    data.confidence
+  );
+})
+.catch(error => {
+  console.error("Backend prediction error:", error);
+});
   }else{
     cameraStatus.textContent="SEARCHING FOR HAND";
     confidenceText.textContent="0%";confidenceFill.style.width="0%";
